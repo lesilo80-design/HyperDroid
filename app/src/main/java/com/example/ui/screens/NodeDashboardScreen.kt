@@ -58,6 +58,8 @@ import com.example.ui.components.MetricGauge
 import com.example.ui.components.SectionHeader
 import com.example.ui.components.StatusBadge
 import com.example.ui.components.VmPerformanceChartCard
+import com.example.ui.components.DashboardVmList
+import androidx.compose.material3.TextButton
 import com.example.ui.viewmodel.MetricViewMode
 import com.example.ui.viewmodel.VmMetricsUiState
 import com.example.ui.theme.CyberCyan
@@ -94,6 +96,11 @@ fun NodeDashboardScreen(
     metricsState: VmMetricsUiState = VmMetricsUiState(),
     onSelectMetricMode: (MetricViewMode) -> Unit = {},
     onSelectVmFilter: (Int?) -> Unit = {},
+    onStartVm: (Int) -> Unit = {},
+    onStopVm: (Int) -> Unit = {},
+    onPauseVm: (Int) -> Unit = {},
+    onForceResetVm: (Int) -> Unit = {},
+    onOpenConsoleForVm: (Int) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val scrollState = rememberScrollState()
@@ -296,6 +303,34 @@ fun NodeDashboardScreen(
             metricsState = metricsState,
             onSelectMode = onSelectMetricMode,
             onSelectVmFilter = onSelectVmFilter
+        )
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        // Virtual Machine Fleet & Lifecycle Controls
+        SectionHeader(
+            title = "Virtual Machine Fleet & Lifecycle",
+            icon = Icons.Default.Dns,
+            badgeCount = "${runningVms.size}/${vms.size} RUNNING",
+            action = {
+                TextButton(onClick = onNavigateToVms) {
+                    Text(
+                        text = "VIEW FULL LIST",
+                        color = ProxmoxOrange,
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+            }
+        )
+
+        DashboardVmList(
+            vms = vms,
+            onStartVm = onStartVm,
+            onStopVm = onStopVm,
+            onPauseVm = onPauseVm,
+            onForceResetVm = onForceResetVm,
+            onNavigateToConsole = onOpenConsoleForVm
         )
 
         Spacer(modifier = Modifier.height(16.dp))

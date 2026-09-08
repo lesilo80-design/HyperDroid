@@ -88,6 +88,7 @@ class MainActivity : ComponentActivity() {
                     onStartVm = { viewModel.startVm(it) },
                     onStopVm = { viewModel.stopVm(it) },
                     onPauseVm = { viewModel.pauseVm(it) },
+                    onForceResetVm = { viewModel.forceResetVm(it) },
                     onTriggerFault = { viewModel.triggerFault(it) },
                     onDeleteVm = { viewModel.deleteVm(it) },
                     onOpenCreateDialog = { viewModel.setCreateVmDialogOpen(true) },
@@ -140,6 +141,7 @@ fun HypervisorApp(
     onStartVm: (Int) -> Unit,
     onStopVm: (Int) -> Unit,
     onPauseVm: (Int) -> Unit,
+    onForceResetVm: (Int) -> Unit = {},
     onTriggerFault: (Int) -> Unit,
     onDeleteVm: (Int) -> Unit,
     onOpenCreateDialog: () -> Unit,
@@ -273,7 +275,15 @@ fun HypervisorApp(
                             onRefreshHost = onRefreshHost,
                             onNavigateToTests = { onSelectTab(NavTab.TESTS) },
                             onNavigateToVms = { onSelectTab(NavTab.VMS) },
-                            onNavigateToConsole = { onSelectTab(NavTab.CONSOLE) }
+                            onNavigateToConsole = { onSelectTab(NavTab.CONSOLE) },
+                            onStartVm = onStartVm,
+                            onStopVm = onStopVm,
+                            onPauseVm = onPauseVm,
+                            onForceResetVm = onForceResetVm,
+                            onOpenConsoleForVm = { vmId ->
+                                onSelectVm(vmId)
+                                onSelectTab(NavTab.VMS)
+                            }
                         )
                     }
 
@@ -286,6 +296,7 @@ fun HypervisorApp(
                             onStartVm = onStartVm,
                             onStopVm = onStopVm,
                             onPauseVm = onPauseVm,
+                            onForceResetVm = onForceResetVm,
                             onTriggerFault = onTriggerFault,
                             onDeleteVm = onDeleteVm,
                             onOpenCreateDialog = onOpenCreateDialog,

@@ -27,6 +27,7 @@ import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Memory
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.RestartAlt
 import androidx.compose.material.icons.filled.Security
 import androidx.compose.material.icons.filled.Send
 import androidx.compose.material.icons.filled.Stop
@@ -91,6 +92,7 @@ fun VirtualMachinesScreen(
     onStartVm: (Int) -> Unit,
     onStopVm: (Int) -> Unit,
     onPauseVm: (Int) -> Unit,
+    onForceResetVm: (Int) -> Unit = {},
     onTriggerFault: (Int) -> Unit,
     onDeleteVm: (Int) -> Unit,
     onOpenCreateDialog: () -> Unit,
@@ -129,6 +131,7 @@ fun VirtualMachinesScreen(
                     onStart = { onStartVm(vm.id) },
                     onStop = { onStopVm(vm.id) },
                     onPause = { onPauseVm(vm.id) },
+                    onForceReset = { onForceResetVm(vm.id) },
                     onTriggerFault = { onTriggerFault(vm.id) },
                     onOpenConsole = { activeConsoleVm = vm },
                     onDelete = { vmToDelete = vm }
@@ -215,6 +218,7 @@ fun VmCard(
     onStart: () -> Unit,
     onStop: () -> Unit,
     onPause: () -> Unit,
+    onForceReset: () -> Unit = {},
     onTriggerFault: () -> Unit,
     onOpenConsole: () -> Unit,
     onDelete: () -> Unit,
@@ -411,6 +415,24 @@ fun VmCard(
                         Spacer(modifier = Modifier.width(4.dp))
                         Text(if (isPaused) "RESUME" else "PAUSE", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Slate950)
                     }
+                }
+
+                // Force Reset button
+                IconButton(
+                    onClick = onForceReset,
+                    modifier = Modifier
+                        .size(36.dp)
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(Slate800)
+                        .border(1.dp, StatusRed.copy(alpha = 0.5f), RoundedCornerShape(8.dp))
+                        .testTag("reset_vm_${vm.id}")
+                ) {
+                    Icon(
+                        Icons.Default.RestartAlt,
+                        contentDescription = "Force Reset VM",
+                        tint = StatusRed,
+                        modifier = Modifier.size(18.dp)
+                    )
                 }
 
                 // Console button

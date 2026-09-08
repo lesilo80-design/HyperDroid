@@ -19,8 +19,19 @@ class VmEngineManager(
     private val onLogEmitted: suspend (HypervisorLogEntity) -> Unit
 ) {
     private val activeVmJobs = mutableMapOf<Int, Job>()
+    private val highLoadSpikeVms = mutableSetOf<Int>()
     private val _consoleOutputFlow = MutableSharedFlow<Pair<Int, String>>(extraBufferCapacity = 64)
     val consoleOutputFlow: SharedFlow<Pair<Int, String>> = _consoleOutputFlow.asSharedFlow()
+
+    fun toggleLoadSpike(vmId: Int, enabled: Boolean) {
+        if (enabled) {
+            highLoadSpikeVms.add(vmId)
+        } else {
+            highLoadSpikeVms.remove(vmId)
+        }
+    }
+
+    fun isLoadSpikeActive(vmId: Int): Boolean = highLoadSpikeVms.contains(vmId)
 
     fun startVm(vm: VmEntity) {
         if (activeVmJobs.containsKey(vm.id)) return
@@ -87,20 +98,48 @@ class VmEngineManager(
                 val deltaFaults = Random.nextLong(0, 4)
                 faults += deltaFaults
 
-                val cpu = (Random.nextFloat() * 15f + (vm.vCpuCount * 4f)).coerceIn(3f, 85f)
-                val ramMultiplier = if (vm.osFamily.uppercase() == "WINDOWS") 0.55f else 0.38f
-                val ramUsed = (vm.ramMb * (ramMultiplier + Random.nextFloat() * 0.08f)).toInt()
+                val isStressed = highLoadSpikeVms.contains(vm.id)
+                val cpu = if (isStressed) {
+                    (Random.nextFloat() * 6f + 93.5f).coerceIn(91f, 99.8f)
+                } else {
+                    (Random.nextFloat() * 20f + (vm.vCpuCount * 6f)).coerceIn(8f, 78f)
+                }
+
+                val ramUsed = if (isStressed) {
+                    (vm.ramMb * (0.92f + Random.nextFloat() * 0.06f)).toInt().coerceAtMost(vm.ramMb)
+                } else {
+                    val ramMultiplier = if (vm.osFamily.uppercase() == "WINDOWS") 0.55f else 0.38f
+                    (vm.ramMb * (ramMultiplier + Random.nextFloat() * 0.08f)).toInt()
+                }
 
                 val trapType = if (vm.osFamily.uppercase() == "WINDOWS") "ACPI/MMIO" else "HVC"
+                val ramPercent = (ramUsed.toFloat() / vm.ramMb.coerceAtLeast(1).toFloat()) * 100f
+                val isThresholdBreached = cpu >= 90f || ramPercent >= 90f
+
+                val statusLogLine = if (isThresholdBreached) {
+                    "ALERT: Resource threshold exceeded (>90%)! CPU=${String.format("%.1f", cpu)}%, RAM=${String.format("%.1f", ramPercent)}%"
+                } else {
+                    "vCPU trap: $trapType 0x${Integer.toHexString(Random.nextInt(0x10, 0xFF))} handled (${deltaHypercalls} calls/s)"
+                }
+
                 updatedVm = updatedVm.copy(
                     uptimeSeconds = currentUptime,
                     trappedHypercalls = hypercalls,
                     pageFaults = faults,
                     cpuUsagePercent = String.format("%.1f", cpu).toFloat(),
                     memoryUsageMb = ramUsed,
-                    lastLogLine = "vCPU trap: $trapType 0x${Integer.toHexString(Random.nextInt(0x10, 0xFF))} handled (${deltaHypercalls} calls/s)"
+                    lastLogLine = statusLogLine
                 )
                 onVmUpdated(updatedVm)
+
+                if (isThresholdBreached && Random.nextInt(4) == 0) {
+                    emitLog(
+                        vm.id,
+                        "WARN",
+                        "MONITOR",
+                        "RESOURCE THRESHOLD EXCEEDED: VM ${vm.id} [${vm.name}] is consuming CPU=${String.format("%.1f", cpu)}% RAM=${String.format("%.1f", ramPercent)}% (>90.0% alarm limit)"
+                    )
+                }
 
                 // Periodic telemetry log
                 if (Random.nextInt(5) == 0) {
@@ -145,6 +184,37 @@ class VmEngineManager(
                     lastLogLine = "Execution paused by operator"
                 )
             )
+        }
+    }
+
+    fun forceResetVm(vm: VmEntity) {
+        activeVmJobs[vm.id]?.cancel()
+        activeVmJobs.remove(vm.id)
+        scope.launch {
+            emitLog(
+                vm.id,
+                "WARN",
+                "RESET",
+                "VM ${vm.id} [${vm.name}] hardware RESET pin pulsed; flushing vCPU pipeline and rebooting guest firmware"
+            )
+            val resettingVm = vm.copy(
+                status = "STARTING",
+                cpuUsagePercent = 100f,
+                memoryUsageMb = 96,
+                uptimeSeconds = 0,
+                trappedHypercalls = vm.trappedHypercalls + 25L,
+                lastLogLine = "Hardware force-reset asserted; rebooting guest firmware"
+            )
+            onVmUpdated(resettingVm)
+            val isWindows = vm.osFamily.equals("WINDOWS", ignoreCase = true)
+            val resetConsoleBanner = if (isWindows) {
+                "\n[HARDWARE RESET] Operator triggered hard ACPI reset.\n[TianoCore EDK2] UEFI Firmware initializing virtual TPM 2.0 & VirtIO buses...\n[WINDOWS BOOTMGR] Loading Windows Kernel (ntoskrnl.exe)...\n"
+            } else {
+                "\n[HARDWARE RESET] Hardware reset pin asserted by operator.\n[pKVM-BOOT] Primary vCPU reset: PC=0x80000000, MMU disabled.\n[LINUX-BOOT] Decompressing Linux kernel ... Done, booting the kernel.\n"
+            }
+            _consoleOutputFlow.emit(vm.id to resetConsoleBanner)
+            delay(1200)
+            startVm(resettingVm)
         }
     }
 

@@ -33,7 +33,8 @@ data class HypervisorUiState(
     val isAuditing: Boolean = false,
     val isCreateVmDialogOpen: Boolean = false,
     val selectedTestCategory: String = "ALL",
-    val consoleOutputs: Map<Int, List<String>> = emptyMap()
+    val consoleOutputs: Map<Int, List<String>> = emptyMap(),
+    val stressedVmIds: Set<Int> = emptySet()
 )
 
 class HypervisorViewModel(application: Application) : AndroidViewModel(application) {
@@ -52,6 +53,7 @@ class HypervisorViewModel(application: Application) : AndroidViewModel(applicati
     private val _isAuditing = MutableStateFlow(false)
     private val _isCreateVmDialogOpen = MutableStateFlow(false)
     private val _selectedTestCategory = MutableStateFlow("ALL")
+    private val _stressedVmIds = MutableStateFlow<Set<Int>>(emptySet())
     private val _consoleOutputs = MutableStateFlow<Map<Int, List<String>>>(
         mapOf(
             100 to listOf(
@@ -74,7 +76,8 @@ class HypervisorViewModel(application: Application) : AndroidViewModel(applicati
         _isAuditing,
         _isCreateVmDialogOpen,
         _selectedTestCategory,
-        _consoleOutputs
+        _consoleOutputs,
+        _stressedVmIds
     ) { args: Array<Any?> ->
         @Suppress("UNCHECKED_CAST")
         HypervisorUiState(
@@ -88,7 +91,8 @@ class HypervisorViewModel(application: Application) : AndroidViewModel(applicati
             isAuditing = args[7] as Boolean,
             isCreateVmDialogOpen = args[8] as Boolean,
             selectedTestCategory = args[9] as String,
-            consoleOutputs = args[10] as Map<Int, List<String>>
+            consoleOutputs = args[10] as Map<Int, List<String>>,
+            stressedVmIds = args[11] as Set<Int>
         )
     }.stateIn(
         scope = viewModelScope,
@@ -140,6 +144,25 @@ class HypervisorViewModel(application: Application) : AndroidViewModel(applicati
         viewModelScope.launch {
             repository.pauseVm(id)
         }
+    }
+
+    fun forceResetVm(id: Int) {
+        viewModelScope.launch {
+            repository.forceResetVm(id)
+        }
+    }
+
+    fun toggleStressTest(id: Int) {
+        val current = _stressedVmIds.value.toMutableSet()
+        val isNowStressed = if (current.contains(id)) {
+            current.remove(id)
+            false
+        } else {
+            current.add(id)
+            true
+        }
+        _stressedVmIds.value = current
+        repository.toggleLoadSpike(id, isNowStressed)
     }
 
     fun triggerFault(id: Int) {

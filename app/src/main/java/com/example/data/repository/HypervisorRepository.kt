@@ -574,10 +574,30 @@ class HypervisorRepository(
         engineManager.pauseVm(vm)
     }
 
+    suspend fun forceResetVm(id: Int) = withContext(Dispatchers.IO) {
+        val vm = vmDao.getVmById(id) ?: return@withContext
+        engineManager.forceResetVm(vm)
+        hypervisorLogDao.insertLog(
+            HypervisorLogEntity(
+                timestamp = System.currentTimeMillis(),
+                vmId = id,
+                level = "WARN",
+                tag = "RESET",
+                message = "Operator triggered hard force-reset for VM $id [${vm.name}]"
+            )
+        )
+    }
+
     suspend fun triggerFault(id: Int) = withContext(Dispatchers.IO) {
         val vm = vmDao.getVmById(id) ?: return@withContext
         engineManager.triggerFaultInjection(vm)
     }
+
+    fun toggleLoadSpike(id: Int, enabled: Boolean) {
+        engineManager.toggleLoadSpike(id, enabled)
+    }
+
+    fun isLoadSpikeActive(id: Int): Boolean = engineManager.isLoadSpikeActive(id)
 
     suspend fun deleteVm(id: Int) = withContext(Dispatchers.IO) {
         val vm = vmDao.getVmById(id) ?: return@withContext
