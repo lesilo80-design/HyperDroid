@@ -1,0 +1,8 @@
+{
+  "name": "HyperDroid",
+  "description": "Mobile hypervisor console equivalent to Proxmox for managing virtual machines and testing kernel-level isolation features on Android.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
